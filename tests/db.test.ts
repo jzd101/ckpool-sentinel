@@ -20,6 +20,10 @@ describe("SQLite Database Layer", () => {
     if (fs.existsSync(TEST_DB_PATH)) {
       fs.unlinkSync(TEST_DB_PATH);
     }
+    const jsonPath = TEST_DB_PATH.replace(/\.db$/, ".json");
+    if (fs.existsSync(jsonPath)) {
+      fs.unlinkSync(jsonPath);
+    }
     resetMemoryFallback();
     initDatabase(TEST_DB_PATH);
   });
@@ -28,6 +32,10 @@ describe("SQLite Database Layer", () => {
     closeDb(TEST_DB_PATH);
     if (fs.existsSync(TEST_DB_PATH)) {
       fs.unlinkSync(TEST_DB_PATH);
+    }
+    const jsonPath = TEST_DB_PATH.replace(/\.db$/, ".json");
+    if (fs.existsSync(jsonPath)) {
+      fs.unlinkSync(jsonPath);
     }
     resetMemoryFallback();
   });

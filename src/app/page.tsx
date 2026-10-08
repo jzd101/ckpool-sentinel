@@ -4,9 +4,10 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import Header from "@/components/Header";
 import StatCards from "@/components/StatCards";
 import HashrateChart from "@/components/HashrateChart";
+import HistoryTable from "@/components/HistoryTable";
 import TimeframeComparison from "@/components/TimeframeComparison";
 import WorkerList from "@/components/WorkerList";
-import { DashboardApiResponse, TimeframeOption } from "@/lib/types";
+import { DashboardApiResponse, SnapshotRecord, TimeframeOption } from "@/lib/types";
 import { AlertCircle, RefreshCw, Radio } from "lucide-react";
 
 const DEFAULT_BTC_ADDRESS = "bc1qw7mwuw3nuvf4r9enm39ujzn26gs04gj6t9tx4h";
@@ -36,14 +37,48 @@ export default function DashboardPage() {
         }
 
         const json: DashboardApiResponse = await res.json();
+
+        // Merge snapshots into client-side persistent history
+        try {
+          const storedRaw = localStorage.getItem("ckpool_persisted_snapshots");
+          const storedList: SnapshotRecord[] = storedRaw ? JSON.parse(storedRaw) : [];
+          const snapMap = new Map<number, SnapshotRecord>(storedList.map((s) => [s.timestamp, s]));
+
+          if (json.latest) {
+            snapMap.set(json.latest.timestamp, json.latest);
+          }
+          if (json.snapshots && json.snapshots.length > 0) {
+            json.snapshots.forEach((s) => snapMap.set(s.timestamp, s));
+          }
+
+          const merged = Array.from(snapMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+          const capped = merged.slice(-5000);
+          localStorage.setItem("ckpool_persisted_snapshots", JSON.stringify(capped));
+
+          // Filter snapshots by selected timeframe
+          const nowTs = Math.floor(Date.now() / 1000);
+          const tfSecs =
+            selectedTf === "1h"
+              ? 3600
+              : selectedTf === "24h"
+              ? 86400
+              : selectedTf === "7d"
+              ? 86400 * 7
+              : selectedTf === "30d"
+              ? 86400 * 30
+              : Number.MAX_SAFE_INTEGER;
+          const tfSnapshots = capped.filter((s) => s.timestamp >= nowTs - tfSecs);
+          if (tfSnapshots.length > 0) {
+            json.snapshots = tfSnapshots;
+          }
+          localStorage.setItem("ckpool_dashboard_cache", JSON.stringify(json));
+        } catch {
+          // ignore localStorage errors
+        }
+
         setData(json);
         setCountdown(json.nextSyncInSeconds);
         lastFetchRef.current = Date.now();
-        try {
-          localStorage.setItem("ckpool_dashboard_cache", JSON.stringify(json));
-        } catch {
-          // ignore
-        }
       } catch (err: any) {
         console.error("Fetch stats error:", err);
         setError(err?.message || "Failed to connect to dashboard API");
@@ -169,7 +204,16 @@ export default function DashboardPage() {
           isLoading={isLoading}
         />
 
-        {/* 4. Bottom Grid: Timeframe Comparison & Worker Nodes */}
+        {/* 4. Background Job Ingestion History */}
+        <HistoryTable
+          history={data?.history || []}
+          snapshots={data?.snapshots || []}
+          timeframe={timeframe}
+          onTimeframeChange={handleTimeframeChange}
+          lastUpdated={data?.lastUpdated || null}
+        />
+
+        {/* 5. Bottom Grid: Timeframe Comparison & Worker Nodes */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <TimeframeComparison latest={data?.latest || null} />
           <WorkerList workers={data?.latest?.parsedWorkers} />

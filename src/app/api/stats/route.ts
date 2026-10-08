@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { getLatestSnapshot, getSnapshotsByTimeframe } from "@/lib/db";
 import { syncCKPoolStats, SYNC_INTERVAL_SECONDS } from "@/lib/sync";
+import { generateTimelineHistory } from "@/lib/timeline";
 import { DashboardApiResponse, RawCKPoolUserStats, TimeframeOption } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -32,53 +33,7 @@ export async function GET(request: NextRequest) {
     }
 
     const historyRecords = getSnapshotsByTimeframe(timeframe);
-
-    // If only 1 record exists in history (new installation), create an anchor baseline
-    // so the chart can draw an area rather than an isolated invisible dot
-    let chartHistory = historyRecords.map((r) => ({
-      timestamp: r.timestamp,
-      hashrate_1m: r.hashrate_1m,
-      hashrate_5m: r.hashrate_5m,
-      hashrate_1hr: r.hashrate_1hr,
-      hashrate_1d: r.hashrate_1d,
-      hashrate_7d: r.hashrate_7d,
-    }));
-
-    if (chartHistory.length <= 1 && latest) {
-      if (chartHistory.length === 0) {
-        chartHistory = [
-          {
-            timestamp: latest.timestamp - SYNC_INTERVAL_SECONDS,
-            hashrate_1m: latest.hashrate_1m,
-            hashrate_5m: latest.hashrate_5m,
-            hashrate_1hr: latest.hashrate_1hr,
-            hashrate_1d: latest.hashrate_1d,
-            hashrate_7d: latest.hashrate_7d,
-          },
-          {
-            timestamp: latest.timestamp,
-            hashrate_1m: latest.hashrate_1m,
-            hashrate_5m: latest.hashrate_5m,
-            hashrate_1hr: latest.hashrate_1hr,
-            hashrate_1d: latest.hashrate_1d,
-            hashrate_7d: latest.hashrate_7d,
-          },
-        ];
-      } else {
-        // Add a baseline 1 minute prior with same current averages
-        chartHistory = [
-          {
-            timestamp: latest.timestamp - SYNC_INTERVAL_SECONDS,
-            hashrate_1m: latest.hashrate_1m,
-            hashrate_5m: latest.hashrate_5m,
-            hashrate_1hr: latest.hashrate_1hr,
-            hashrate_1d: latest.hashrate_1d,
-            hashrate_7d: latest.hashrate_7d,
-          },
-          chartHistory[0],
-        ];
-      }
-    }
+    const chartHistory = generateTimelineHistory(timeframe, historyRecords, latest);
 
     // Parse worker details from raw_json
     let parsedWorkers = undefined;
@@ -98,6 +53,7 @@ export async function GET(request: NextRequest) {
     const responseData: DashboardApiResponse = {
       latest: latest ? { ...latest, parsedWorkers } : null,
       history: chartHistory,
+      snapshots: historyRecords,
       timeframe,
       lastUpdated,
       nextSyncInSeconds,
@@ -118,26 +74,11 @@ export async function GET(request: NextRequest) {
         } catch {
           // ignore
         }
+        const fallbackHistory = generateTimelineHistory("24h", [], syncResult.data);
         return NextResponse.json({
           latest: { ...syncResult.data, parsedWorkers },
-          history: [
-            {
-              timestamp: syncResult.data.timestamp - SYNC_INTERVAL_SECONDS,
-              hashrate_1m: syncResult.data.hashrate_1m,
-              hashrate_5m: syncResult.data.hashrate_5m,
-              hashrate_1hr: syncResult.data.hashrate_1hr,
-              hashrate_1d: syncResult.data.hashrate_1d,
-              hashrate_7d: syncResult.data.hashrate_7d,
-            },
-            {
-              timestamp: syncResult.data.timestamp,
-              hashrate_1m: syncResult.data.hashrate_1m,
-              hashrate_5m: syncResult.data.hashrate_5m,
-              hashrate_1hr: syncResult.data.hashrate_1hr,
-              hashrate_1d: syncResult.data.hashrate_1d,
-              hashrate_7d: syncResult.data.hashrate_7d,
-            },
-          ],
+          history: fallbackHistory,
+          snapshots: [syncResult.data],
           timeframe: "24h",
           lastUpdated: syncResult.data.timestamp,
           nextSyncInSeconds: SYNC_INTERVAL_SECONDS,

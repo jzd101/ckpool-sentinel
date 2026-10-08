@@ -56,16 +56,25 @@ export type NewSnapshotInput = Omit<SnapshotRecord, "id">;
 
 export type TimeframeOption = "1h" | "24h" | "7d" | "30d" | "all";
 
+export interface HistoryPoint {
+  id?: number;
+  timestamp: number;
+  hashrate_1m: number;
+  hashrate_5m: number;
+  hashrate_1hr: number;
+  hashrate_1d: number;
+  hashrate_7d: number;
+  raw_hashrate_1m?: string;
+  shares?: number;
+  bestshare?: number;
+  workers_count?: number;
+  source?: "background" | "manual" | "synthesized";
+}
+
 export interface DashboardApiResponse {
   latest: (SnapshotRecord & { parsedWorkers?: RawWorkerStats[] }) | null;
-  history: Array<{
-    timestamp: number;
-    hashrate_1m: number;
-    hashrate_5m: number;
-    hashrate_1hr: number;
-    hashrate_1d: number;
-    hashrate_7d: number;
-  }>;
+  history: HistoryPoint[];
+  snapshots?: SnapshotRecord[];
   timeframe: TimeframeOption;
   lastUpdated: number | null;
   nextSyncInSeconds: number;

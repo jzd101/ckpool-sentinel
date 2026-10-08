@@ -22,6 +22,52 @@ export function getDefaultDbPath(): string {
   return path.join(process.cwd(), "data", "stats.db");
 }
 
+export function getJsonBackupPath(dbPath?: string): string {
+  if (dbPath) {
+    return dbPath.replace(/\.db$/, ".json");
+  }
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join("/tmp", "stats_snapshots.json");
+  }
+  return path.join(process.cwd(), "data", "stats_snapshots.json");
+}
+
+export function loadJsonBackup(backupPath: string): void {
+  try {
+    if (fs.existsSync(backupPath)) {
+      const content = fs.readFileSync(backupPath, "utf-8");
+      const list: SnapshotRecord[] = JSON.parse(content);
+      if (Array.isArray(list) && list.length > 0) {
+        for (const item of list) {
+          if (!inMemorySnapshots.some((s) => s.timestamp === item.timestamp)) {
+            inMemorySnapshots.push(item);
+          }
+        }
+        inMemorySnapshots.sort((a, b) => a.timestamp - b.timestamp);
+        memoryIdCounter = Math.max(memoryIdCounter, ...inMemorySnapshots.map((s) => s.id + 1));
+      }
+    }
+  } catch {
+    // ignore read error
+  }
+}
+
+export function saveJsonBackup(backupPath: string): void {
+  try {
+    const dir = path.dirname(backupPath);
+    if (dir !== "/tmp" && !fs.existsSync(dir)) {
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+      } catch {
+        // ignore
+      }
+    }
+    fs.writeFileSync(backupPath, JSON.stringify(inMemorySnapshots.slice(-10000)), "utf-8");
+  } catch {
+    // ignore write error
+  }
+}
+
 export function resetMemoryFallback(): void {
   useMemoryFallback = false;
   inMemorySnapshots.length = 0;
@@ -168,6 +214,7 @@ export function insertSnapshot(snapshot: NewSnapshotInput, dbPath?: string): Sna
         id: Number(info.lastInsertRowid),
       };
       inMemorySnapshots.push(record);
+      saveJsonBackup(getJsonBackupPath(dbPath));
       return record;
     } catch (err) {
       console.warn("SQLite insert failed, falling back to memory:", err);
@@ -180,6 +227,7 @@ export function insertSnapshot(snapshot: NewSnapshotInput, dbPath?: string): Sna
     id: memoryIdCounter++,
   };
   inMemorySnapshots.push(record);
+  saveJsonBackup(getJsonBackupPath(dbPath));
   return record;
 }
 
@@ -195,6 +243,10 @@ export function getLatestSnapshot(dbPath?: string): SnapshotRecord | null {
     } catch (err) {
       console.warn("SQLite getLatestSnapshot failed, falling back to memory:", err);
     }
+  }
+
+  if (inMemorySnapshots.length === 0) {
+    loadJsonBackup(getJsonBackupPath(dbPath));
   }
 
   if (inMemorySnapshots.length > 0) {
@@ -243,6 +295,10 @@ export function getSnapshotsByTimeframe(
     } catch (err) {
       console.warn("SQLite getSnapshotsByTimeframe failed, falling back to memory:", err);
     }
+  }
+
+  if (inMemorySnapshots.length === 0) {
+    loadJsonBackup(getJsonBackupPath(dbPath));
   }
 
   return inMemorySnapshots

@@ -12,6 +12,10 @@ describe("CKPool Sync Service", () => {
     if (fs.existsSync(TEST_DB_PATH)) {
       fs.unlinkSync(TEST_DB_PATH);
     }
+    const jsonPath = TEST_DB_PATH.replace(/\.db$/, ".json");
+    if (fs.existsSync(jsonPath)) {
+      fs.unlinkSync(jsonPath);
+    }
     resetMemoryFallback();
     initDatabase(TEST_DB_PATH);
   });
@@ -20,6 +24,10 @@ describe("CKPool Sync Service", () => {
     closeDb(TEST_DB_PATH);
     if (fs.existsSync(TEST_DB_PATH)) {
       fs.unlinkSync(TEST_DB_PATH);
+    }
+    const jsonPath = TEST_DB_PATH.replace(/\.db$/, ".json");
+    if (fs.existsSync(jsonPath)) {
+      fs.unlinkSync(jsonPath);
     }
     resetMemoryFallback();
     vi.restoreAllMocks();
