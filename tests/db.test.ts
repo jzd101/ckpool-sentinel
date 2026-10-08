@@ -20,6 +20,7 @@ describe("SQLite Database Layer", () => {
     if (fs.existsSync(TEST_DB_PATH)) {
       fs.unlinkSync(TEST_DB_PATH);
     }
+    resetMemoryFallback();
     initDatabase(TEST_DB_PATH);
   });
 
@@ -28,6 +29,7 @@ describe("SQLite Database Layer", () => {
     if (fs.existsSync(TEST_DB_PATH)) {
       fs.unlinkSync(TEST_DB_PATH);
     }
+    resetMemoryFallback();
   });
 
   const sampleInput: NewSnapshotInput = {

@@ -3,7 +3,7 @@ import { parseHashrateToTh } from "./hashrate";
 import { NewSnapshotInput, RawCKPoolUserStats, SnapshotRecord } from "./types";
 
 export const CKPOOL_USER_URL = "https://raw.stats.ckpool.org/users/bc1qw7mwuw3nuvf4r9enm39ujzn26gs04gj6t9tx4h";
-export const SYNC_INTERVAL_SECONDS = 300; // 5 minutes
+export const SYNC_INTERVAL_SECONDS = 60; // 1 minute
 
 export interface SyncResult {
   success: boolean;
@@ -16,7 +16,7 @@ export async function syncCKPoolStats(force: boolean = false, dbPath?: string): 
   const latest = getLatestSnapshot(dbPath);
   const now = Math.floor(Date.now() / 1000);
 
-  // If not forced and synced recently (< 5 minutes), return latest cached
+  // If not forced and synced recently (< 1 minute), return latest cached
   if (!force && latest && now - latest.timestamp < SYNC_INTERVAL_SECONDS) {
     return {
       success: true,

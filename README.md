@@ -11,7 +11,7 @@ A modern, high-tech web dashboard for real-time monitoring and historical analys
 
 ## 🌟 Key Features
 
-* **Automated 5-Minute Sync**: Automatically synchronizes stats from `raw.stats.ckpool.org` every 5 minutes and persists snapshots to a local SQLite database (`data/stats.db`).
+* **Automated 1-Minute Sync**: Automatically synchronizes stats from `raw.stats.ckpool.org` every 1 minute and persists snapshots to a local SQLite database (`data/stats.db`).
 * **CORS Proxy**: Next.js server route handlers bypass upstream CORS restrictions cleanly.
 * **Interactive Time-series Charts**: Recharts area curves featuring custom neon SVG glow gradients, interactive tooltips, and timeframe switching (`1H`, `24H`, `7D`, `30D`, `ALL`).
 * **Pool Source Comparison**: Visual comparison meters for CKPool's 5 native timeframes (`1m`, `5m`, `1hr`, `1d`, `7d`) with mining stability calculation.
@@ -19,7 +19,7 @@ A modern, high-tech web dashboard for real-time monitoring and historical analys
 * **Modern Dark Crypto Terminal UI**:
   * Glassmorphism with translucent slate blur panels (`backdrop-blur-xl`).
   * Neon accents: Bitcoin Amber (`#F7931A`), Electric Cyan (`#00F2FE`), Emerald Green (`#10B981`).
-  * 5-Minute circular countdown timer widget and instant **Force Refresh** button.
+  * 1-Minute circular countdown timer widget and instant **Force Refresh** button.
   * 1-Click Bitcoin address copy-to-clipboard.
 
 ---

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
         latest = syncResult.data;
       }
     } else if (now - latest.timestamp >= SYNC_INTERVAL_SECONDS) {
-      // Data is older than 5 minutes: DO NOT block user request.
+      // Data is older than 1 minute: DO NOT block user request.
       // Dispatch background sync job via Next.js 15 after()
       after(async () => {
         try {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       if (chartHistory.length === 0) {
         chartHistory = [
           {
-            timestamp: latest.timestamp - 300,
+            timestamp: latest.timestamp - SYNC_INTERVAL_SECONDS,
             hashrate_1m: latest.hashrate_1m,
             hashrate_5m: latest.hashrate_5m,
             hashrate_1hr: latest.hashrate_1hr,
@@ -65,10 +65,10 @@ export async function GET(request: NextRequest) {
           },
         ];
       } else {
-        // Add a baseline 5 minutes prior with same current averages
+        // Add a baseline 1 minute prior with same current averages
         chartHistory = [
           {
-            timestamp: latest.timestamp - 300,
+            timestamp: latest.timestamp - SYNC_INTERVAL_SECONDS,
             hashrate_1m: latest.hashrate_1m,
             hashrate_5m: latest.hashrate_5m,
             hashrate_1hr: latest.hashrate_1hr,
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
           latest: { ...syncResult.data, parsedWorkers },
           history: [
             {
-              timestamp: syncResult.data.timestamp - 300,
+              timestamp: syncResult.data.timestamp - SYNC_INTERVAL_SECONDS,
               hashrate_1m: syncResult.data.hashrate_1m,
               hashrate_5m: syncResult.data.hashrate_5m,
               hashrate_1hr: syncResult.data.hashrate_1hr,
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
           ],
           timeframe: "24h",
           lastUpdated: syncResult.data.timestamp,
-          nextSyncInSeconds: 300,
+          nextSyncInSeconds: SYNC_INTERVAL_SECONDS,
           isCachedFallback: true,
         });
       }

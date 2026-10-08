@@ -114,7 +114,7 @@ export default function HashrateChart({
             Hashrate Performance Timeline
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Real-time hashrate fluctuations recorded at 5-minute intervals
+            Real-time hashrate fluctuations recorded at 1-minute intervals
           </p>
         </div>
 

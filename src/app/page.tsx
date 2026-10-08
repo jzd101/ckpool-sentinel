@@ -17,7 +17,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [countdown, setCountdown] = useState<number>(300);
+  const [countdown, setCountdown] = useState<number>(60);
 
   const lastFetchRef = useRef<number>(Date.now());
 
@@ -106,7 +106,7 @@ export default function DashboardPage() {
         if (prev <= 1) {
           // Time expired: auto-sync in background
           fetchStats(timeframe, false);
-          return 300;
+          return 60;
         }
         return prev - 1;
       });
@@ -120,7 +120,7 @@ export default function DashboardPage() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         const elapsedSinceLastFetch = (Date.now() - lastFetchRef.current) / 1000;
-        if (elapsedSinceLastFetch >= 300) {
+        if (elapsedSinceLastFetch >= 60) {
           fetchStats(timeframe, false);
         }
       }
@@ -181,7 +181,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           <Radio className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
           <span>
-            CKPool Sentinel Dashboard &bull; Auto-syncing every 5 minutes from{" "}
+            CKPool Sentinel Dashboard &bull; Auto-syncing every 1 minute from{" "}
             <a
               href="https://raw.stats.ckpool.org/users/bc1qw7mwuw3nuvf4r9enm39ujzn26gs04gj6t9tx4h"
               target="_blank"

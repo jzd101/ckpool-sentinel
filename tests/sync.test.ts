@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "fs";
 import path from "path";
-import { syncCKPoolStats } from "@/lib/sync";
-import { closeDb, initDatabase, getLatestSnapshot } from "@/lib/db";
+import { syncCKPoolStats, SYNC_INTERVAL_SECONDS } from "@/lib/sync";
+import { closeDb, initDatabase, getLatestSnapshot, resetMemoryFallback } from "@/lib/db";
 
 const TEST_DB_PATH = path.join(__dirname, "temp_sync_test.db");
 
@@ -12,6 +12,7 @@ describe("CKPool Sync Service", () => {
     if (fs.existsSync(TEST_DB_PATH)) {
       fs.unlinkSync(TEST_DB_PATH);
     }
+    resetMemoryFallback();
     initDatabase(TEST_DB_PATH);
   });
 
@@ -20,6 +21,7 @@ describe("CKPool Sync Service", () => {
     if (fs.existsSync(TEST_DB_PATH)) {
       fs.unlinkSync(TEST_DB_PATH);
     }
+    resetMemoryFallback();
     vi.restoreAllMocks();
   });
 
@@ -86,5 +88,27 @@ describe("CKPool Sync Service", () => {
     expect(fallbackResult.cached).toBe(true);
     expect(fallbackResult.data).not.toBeNull();
     expect(fallbackResult.data?.raw_hashrate_1m).toBe("1.8T");
+  });
+
+  it("should have SYNC_INTERVAL_SECONDS configured to 60 seconds (1 minute)", () => {
+    expect(SYNC_INTERVAL_SECONDS).toBe(60);
+  });
+
+  it("should return cached record if less than 1 minute has elapsed without force", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockPayload,
+    } as Response);
+    global.fetch = fetchMock;
+
+    // First call: initial fetch
+    const firstResult = await syncCKPoolStats(true, TEST_DB_PATH);
+    expect(firstResult.cached).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Second call without force: should use cache (< 60 seconds)
+    const secondResult = await syncCKPoolStats(false, TEST_DB_PATH);
+    expect(secondResult.cached).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
