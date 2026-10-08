@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getLatestSnapshot, getSnapshotsByTimeframe } from "@/lib/db";
 import { syncCKPoolStats, SYNC_INTERVAL_SECONDS } from "@/lib/sync";
 import { DashboardApiResponse, RawCKPoolUserStats, TimeframeOption } from "@/lib/types";
@@ -13,12 +13,22 @@ export async function GET(request: NextRequest) {
     let latest = getLatestSnapshot();
     const now = Math.floor(Date.now() / 1000);
 
-    // If cold start (no records) or data is stale (> 5 minutes), auto-sync
-    if (!latest || now - latest.timestamp >= SYNC_INTERVAL_SECONDS) {
-      const syncResult = await syncCKPoolStats(false);
+    // If cold start (no records exist), perform initial sync to populate first record
+    if (!latest) {
+      const syncResult = await syncCKPoolStats(true);
       if (syncResult.data) {
         latest = syncResult.data;
       }
+    } else if (now - latest.timestamp >= SYNC_INTERVAL_SECONDS) {
+      // Data is older than 5 minutes: DO NOT block user request.
+      // Dispatch background sync job via Next.js 15 after()
+      after(async () => {
+        try {
+          await syncCKPoolStats(true);
+        } catch (bgErr) {
+          console.warn("Background CKPool sync job error:", bgErr);
+        }
+      });
     }
 
     const historyRecords = getSnapshotsByTimeframe(timeframe);

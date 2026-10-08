@@ -1,0 +1,24 @@
+name: Background CKPool Ingestion
+
+on:
+  schedule:
+    # Run every 5 minutes as a background job
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync-stats:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger background sync on Vercel deployment
+        run: |
+          echo "Triggering background synchronization..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST https://solo-minier.vercel.app/api/sync)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          echo "HTTP Code: $HTTP_CODE"
+          echo "Response: $BODY"
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "Failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
