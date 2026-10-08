@@ -1,7 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "fs";
 import path from "path";
-import { initDatabase, insertSnapshot, getLatestSnapshot, getSnapshotsByTimeframe, closeDb } from "@/lib/db";
+import {
+  initDatabase,
+  insertSnapshot,
+  getLatestSnapshot,
+  getSnapshotsByTimeframe,
+  closeDb,
+  getDefaultDbPath,
+  resetMemoryFallback,
+} from "@/lib/db";
 import { NewSnapshotInput } from "@/lib/types";
 
 const TEST_DB_PATH = path.join(__dirname, "temp_test_stats.db");
@@ -69,5 +77,37 @@ describe("SQLite Database Layer", () => {
 
     const last7d = getSnapshotsByTimeframe("7d", TEST_DB_PATH);
     expect(last7d.length).toBe(3);
+  });
+
+  it("should resolve default DB path to /tmp/stats.db in Vercel environment", () => {
+    const originalVercel = process.env.VERCEL;
+    try {
+      process.env.VERCEL = "1";
+      expect(getDefaultDbPath()).toBe("/tmp/stats.db");
+    } finally {
+      if (originalVercel !== undefined) {
+        process.env.VERCEL = originalVercel;
+      } else {
+        delete process.env.VERCEL;
+      }
+    }
+  });
+
+  it("should seamlessly store and retrieve snapshots via in-memory fallback", () => {
+    resetMemoryFallback();
+
+    // Use an uncreatable directory to force fallback
+    const impossiblePath = "/uncreatable-non-existent-directory/stats.db";
+    const inserted = insertSnapshot(sampleInput, impossiblePath);
+    expect(inserted.id).toBeDefined();
+
+    const latest = getLatestSnapshot(impossiblePath);
+    expect(latest).not.toBeNull();
+    expect(latest?.shares).toBe(sampleInput.shares);
+
+    const history = getSnapshotsByTimeframe("24h", impossiblePath);
+    expect(history.length).toBeGreaterThanOrEqual(1);
+
+    resetMemoryFallback();
   });
 });

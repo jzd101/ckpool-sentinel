@@ -34,19 +34,40 @@ export async function GET(request: NextRequest) {
       hashrate_7d: r.hashrate_7d,
     }));
 
-    if (chartHistory.length === 1 && latest) {
-      // Add a baseline 5 minutes prior with same current averages
-      chartHistory = [
-        {
-          timestamp: latest.timestamp - 300,
-          hashrate_1m: latest.hashrate_1m,
-          hashrate_5m: latest.hashrate_5m,
-          hashrate_1hr: latest.hashrate_1hr,
-          hashrate_1d: latest.hashrate_1d,
-          hashrate_7d: latest.hashrate_7d,
-        },
-        chartHistory[0],
-      ];
+    if (chartHistory.length <= 1 && latest) {
+      if (chartHistory.length === 0) {
+        chartHistory = [
+          {
+            timestamp: latest.timestamp - 300,
+            hashrate_1m: latest.hashrate_1m,
+            hashrate_5m: latest.hashrate_5m,
+            hashrate_1hr: latest.hashrate_1hr,
+            hashrate_1d: latest.hashrate_1d,
+            hashrate_7d: latest.hashrate_7d,
+          },
+          {
+            timestamp: latest.timestamp,
+            hashrate_1m: latest.hashrate_1m,
+            hashrate_5m: latest.hashrate_5m,
+            hashrate_1hr: latest.hashrate_1hr,
+            hashrate_1d: latest.hashrate_1d,
+            hashrate_7d: latest.hashrate_7d,
+          },
+        ];
+      } else {
+        // Add a baseline 5 minutes prior with same current averages
+        chartHistory = [
+          {
+            timestamp: latest.timestamp - 300,
+            hashrate_1m: latest.hashrate_1m,
+            hashrate_5m: latest.hashrate_5m,
+            hashrate_1hr: latest.hashrate_1hr,
+            hashrate_1d: latest.hashrate_1d,
+            hashrate_7d: latest.hashrate_7d,
+          },
+          chartHistory[0],
+        ];
+      }
     }
 
     // Parse worker details from raw_json
@@ -75,6 +96,48 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(responseData);
   } catch (error: any) {
     console.error("API /api/stats error:", error);
+
+    // Disaster recovery: try direct fetch from CKPool if DB operations threw
+    try {
+      const syncResult = await syncCKPoolStats(true);
+      if (syncResult.data) {
+        let parsedWorkers = undefined;
+        try {
+          const rawObj = JSON.parse(syncResult.data.raw_json);
+          parsedWorkers = rawObj.worker;
+        } catch {
+          // ignore
+        }
+        return NextResponse.json({
+          latest: { ...syncResult.data, parsedWorkers },
+          history: [
+            {
+              timestamp: syncResult.data.timestamp - 300,
+              hashrate_1m: syncResult.data.hashrate_1m,
+              hashrate_5m: syncResult.data.hashrate_5m,
+              hashrate_1hr: syncResult.data.hashrate_1hr,
+              hashrate_1d: syncResult.data.hashrate_1d,
+              hashrate_7d: syncResult.data.hashrate_7d,
+            },
+            {
+              timestamp: syncResult.data.timestamp,
+              hashrate_1m: syncResult.data.hashrate_1m,
+              hashrate_5m: syncResult.data.hashrate_5m,
+              hashrate_1hr: syncResult.data.hashrate_1hr,
+              hashrate_1d: syncResult.data.hashrate_1d,
+              hashrate_7d: syncResult.data.hashrate_7d,
+            },
+          ],
+          timeframe: "24h",
+          lastUpdated: syncResult.data.timestamp,
+          nextSyncInSeconds: 300,
+          isCachedFallback: true,
+        });
+      }
+    } catch {
+      // ignore
+    }
+
     return NextResponse.json(
       { error: error?.message || "Internal server error" },
       { status: 500 }

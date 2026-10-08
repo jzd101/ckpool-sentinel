@@ -39,6 +39,11 @@ export default function DashboardPage() {
         setData(json);
         setCountdown(json.nextSyncInSeconds);
         lastFetchRef.current = Date.now();
+        try {
+          localStorage.setItem("ckpool_dashboard_cache", JSON.stringify(json));
+        } catch {
+          // ignore
+        }
       } catch (err: any) {
         console.error("Fetch stats error:", err);
         setError(err?.message || "Failed to connect to dashboard API");
@@ -77,8 +82,20 @@ export default function DashboardPage() {
     fetchStats(newTf, false);
   };
 
-  // Initial load
+  // Initial load: restore local cache if available, then fetch fresh
   useEffect(() => {
+    try {
+      const cached = localStorage.getItem("ckpool_dashboard_cache");
+      if (cached) {
+        const parsed: DashboardApiResponse = JSON.parse(cached);
+        if (parsed?.latest) {
+          setData(parsed);
+          setIsLoading(false);
+        }
+      }
+    } catch {
+      // ignore
+    }
     fetchStats("24h", true);
   }, []);
 

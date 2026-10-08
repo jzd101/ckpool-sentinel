@@ -26,13 +26,18 @@ export async function syncCKPoolStats(force: boolean = false, dbPath?: string): 
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const res = await fetch(CKPOOL_USER_URL, {
       headers: {
         "User-Agent": "CKPool-Sentinel-Dashboard/1.0",
         Accept: "application/json",
       },
       cache: "no-store",
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
       throw new Error(`Upstream returned HTTP ${res.status}: ${res.statusText}`);
@@ -60,7 +65,14 @@ export async function syncCKPoolStats(force: boolean = false, dbPath?: string): 
       raw_json: JSON.stringify(json),
     };
 
-    const record = insertSnapshot(newSnapshot, dbPath);
+    let record: SnapshotRecord;
+    try {
+      record = insertSnapshot(newSnapshot, dbPath);
+    } catch (insertErr) {
+      console.warn("Could not insert snapshot to DB, using raw snapshot:", insertErr);
+      record = { ...newSnapshot, id: 1 };
+    }
+
     return {
       success: true,
       data: record,
