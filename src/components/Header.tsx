@@ -103,7 +103,7 @@ export default function Header({
             <button
               onClick={onEditWallet}
               className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition-colors"
-              title="แก้ไข / เปลี่ยน Bitcoin Wallet Address"
+              title="Edit / Switch Bitcoin Wallet Address"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>

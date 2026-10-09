@@ -24,7 +24,7 @@ describe("Bitcoin Wallet Address Validation", () => {
   it("should reject empty or whitespace-only addresses", () => {
     const emptyResult = validateBtcAddress("");
     expect(emptyResult.valid).toBe(false);
-    expect(emptyResult.error).toContain("กรุณาระบุ");
+    expect(emptyResult.error).toContain("Please enter");
 
     const spacesResult = validateBtcAddress("   ");
     expect(spacesResult.valid).toBe(false);
@@ -33,12 +33,12 @@ describe("Bitcoin Wallet Address Validation", () => {
   it("should reject addresses that are too short", () => {
     const shortResult = validateBtcAddress("1A1zP1e");
     expect(shortResult.valid).toBe(false);
-    expect(shortResult.error).toContain("ความยาว");
+    expect(shortResult.error).toContain("Invalid address length");
   });
 
   it("should reject addresses with invalid characters such as spaces or symbols", () => {
     const invalidCharsResult = validateBtcAddress("bc1q!invalid#address$char%^&*");
     expect(invalidCharsResult.valid).toBe(false);
-    expect(invalidCharsResult.error).toContain("เฉพาะตัวอักษรและตัวเลข");
+    expect(invalidCharsResult.error).toContain("alphanumeric");
   });
 });

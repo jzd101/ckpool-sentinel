@@ -123,7 +123,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your web browser. If you are launching for the first time, you will be greeted by the **Wallet Setup Gateway**. Enter your Bitcoin miner address (or click **Use Demo Address**) to enter the dashboard.
+Open [http://localhost:3000](http://localhost:3000) in your web browser. If you are launching for the first time, you will be greeted by the **Wallet Setup Gateway**. Enter your Bitcoin miner address to enter the dashboard.
 
 ### 3. Production Build
 
@@ -164,7 +164,7 @@ GET /api/stats?timeframe={1h|24h|7d|30d|all}&address={btc_address}
 
 **Query Parameters:**
 * `timeframe` *(optional)*: `1h`, `24h` (default), `7d`, `30d`, or `all`.
-* `address` *(optional)*: Bitcoin miner wallet address. Defaults to the configured demo address if omitted.
+* `address` *(optional)*: Bitcoin miner wallet address. Defaults to the configured pool address if omitted.
 
 **Response Structure (200 OK):**
 ```json

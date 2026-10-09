@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Cpu, Wallet, ArrowRight, Sparkles, Check, AlertCircle, X, Clipboard, ShieldCheck } from "lucide-react";
-import { DEFAULT_BTC_ADDRESS } from "@/lib/constants";
+import { Cpu, Wallet, ArrowRight, Sparkles, AlertCircle, X, Clipboard, ShieldCheck } from "lucide-react";
 
 interface WalletGateModalProps {
   isOpen: boolean;
@@ -16,15 +15,15 @@ interface WalletGateModalProps {
 export function validateBtcAddress(addr: string): { valid: boolean; error?: string } {
   const cleaned = addr.trim();
   if (!cleaned) {
-    return { valid: false, error: "กรุณาระบุ Bitcoin Wallet Address" };
+    return { valid: false, error: "Please enter your Bitcoin wallet address" };
   }
   // Standard BTC address lengths typically 26 to 90 chars (Legacy, SegWit P2SH, Native SegWit bech32/bech32m)
   if (cleaned.length < 26 || cleaned.length > 90) {
-    return { valid: false, error: "ความยาว Address ไม่ถูกต้อง (ปกติจะอยู่ระหว่าง 26-90 ตัวอักษร)" };
+    return { valid: false, error: "Invalid address length (expected between 26 and 90 characters)" };
   }
   // Check for allowed characters: alphanumeric (Base58 or Bech32)
   if (!/^[a-zA-Z0-9]+$/.test(cleaned)) {
-    return { valid: false, error: "Address ต้องมีเฉพาะตัวอักษรและตัวเลขเท่านั้น (ห้ามมีเว้นวรรคหรือสัญลักษณ์พิเศษ)" };
+    return { valid: false, error: "Address must only contain alphanumeric characters (no spaces or special symbols)" };
   }
   return { valid: true };
 }
@@ -38,7 +37,6 @@ export default function WalletGateModal({
 }: WalletGateModalProps) {
   const [addressInput, setAddressInput] = useState<string>(currentAddress || "");
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [copiedDemo, setCopiedDemo] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -53,18 +51,11 @@ export default function WalletGateModal({
     if (e) e.preventDefault();
     const result = validateBtcAddress(addressInput);
     if (!result.valid) {
-      setValidationError(result.error || "Address ไม่ถูกต้อง");
+      setValidationError(result.error || "Invalid Bitcoin address");
       return;
     }
     setValidationError(null);
     onSave(addressInput.trim());
-  };
-
-  const handleUseDemo = () => {
-    setAddressInput(DEFAULT_BTC_ADDRESS);
-    setValidationError(null);
-    setCopiedDemo(true);
-    setTimeout(() => setCopiedDemo(false), 2000);
   };
 
   const handlePaste = async () => {
@@ -90,7 +81,7 @@ export default function WalletGateModal({
               Bitcoin Wallet Address
             </span>
             <span className="text-[11px] text-slate-400 font-normal">
-              (SegWit / Taproot / Legacy)
+              (Native SegWit / Taproot / Legacy)
             </span>
           </label>
 
@@ -102,7 +93,7 @@ export default function WalletGateModal({
                 setAddressInput(e.target.value);
                 if (validationError) setValidationError(null);
               }}
-              placeholder="เช่น bc1qw7mwuw... หรือ 1A1zP1e... หรือ 3J98t1..."
+              placeholder="e.g. bc1q... or 1A1z... or 3J98..."
               className="w-full bg-slate-950/80 border border-slate-700/80 focus:border-amber-400 rounded-xl px-4 py-3 text-sm font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400/20 transition-all pr-20"
               autoFocus
             />
@@ -112,7 +103,7 @@ export default function WalletGateModal({
                   type="button"
                   onClick={() => setAddressInput("")}
                   className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 text-xs"
-                  title="ล้างข้อมูล"
+                  title="Clear input"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -121,7 +112,7 @@ export default function WalletGateModal({
                 type="button"
                 onClick={handlePaste}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors text-xs flex items-center gap-1"
-                title="วางจากคลิปบอร์ด"
+                title="Paste from clipboard"
               >
                 <Clipboard className="w-4 h-4" />
               </button>
@@ -137,23 +128,6 @@ export default function WalletGateModal({
           )}
         </div>
 
-        {/* Demo address quick filler */}
-        <div className="flex items-center justify-between text-xs pt-1">
-          <button
-            type="button"
-            onClick={handleUseDemo}
-            className="text-slate-400 hover:text-amber-400 transition-colors flex items-center gap-1.5 group"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
-            <span>ใช้ Demo Wallet เริ่มต้น ({DEFAULT_BTC_ADDRESS.slice(0, 8)}...)</span>
-          </button>
-          {copiedDemo && (
-            <span className="text-emerald-400 text-[11px] flex items-center gap-1">
-              <Check className="w-3 h-3" /> ใส่ให้แล้ว
-            </span>
-          )}
-        </div>
-
         {/* Action buttons */}
         <div className="flex items-center gap-3 pt-3">
           {mode === "edit" && onClose && (
@@ -162,7 +136,7 @@ export default function WalletGateModal({
               onClick={onClose}
               className="w-1/3 py-3 px-4 rounded-xl border border-white/10 hover:border-white/20 text-slate-300 hover:text-white font-medium text-xs sm:text-sm transition-colors text-center"
             >
-              ยกเลิก
+              Cancel
             </button>
           )}
           <button
@@ -171,7 +145,7 @@ export default function WalletGateModal({
               mode === "edit" ? "w-2/3" : "w-full"
             } py-3 px-5 rounded-xl font-bold text-xs sm:text-sm text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 transition-all flex items-center justify-center gap-2 group cursor-pointer`}
           >
-            <span>{mode === "gate" ? "บันทึกและเข้าสู่ Dashboard" : "บันทึกและสลับ Wallet"}</span>
+            <span>{mode === "gate" ? "Save & Launch Dashboard" : "Save & Switch Wallet"}</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
@@ -181,7 +155,7 @@ export default function WalletGateModal({
       <div className="mt-5 pt-4 border-t border-slate-800/80 flex items-start gap-2 text-[11px] text-slate-400">
         <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
         <span>
-          ที่อยู่ Wallet จะถูกบันทึกไว้ในเบราว์เซอร์ของคุณอย่างปลอดภัย คุณสามารถเปลี่ยนหรือแก้ไขได้ตลอดเวลาที่หน้า Dashboard
+          Your Bitcoin wallet address is stored locally in your browser. You can edit or change it anytime directly from the dashboard.
         </span>
       </div>
     </div>
@@ -219,7 +193,7 @@ export default function WalletGateModal({
               CKPool <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-200">Sentinel</span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 mt-2 max-w-sm">
-              ระบบตรวจสอบสถิติและสถานะการขุด Bitcoin Solo แบบเรียลไทม์ กรุณาระบุ Wallet Address เพื่อเริ่มต้น
+              Real-time Bitcoin solo mining telemetry and statistics monitor. Please enter your Bitcoin wallet address to get started.
             </p>
           </div>
 
@@ -241,15 +215,15 @@ export default function WalletGateModal({
               <Wallet className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">แก้ไข Bitcoin Wallet Address</h2>
-              <p className="text-xs text-slate-400">เปลี่ยนกระเป๋าที่ใช้ดึงข้อมูลจาก CKPool</p>
+              <h2 className="text-lg font-bold text-white">Edit Bitcoin Wallet Address</h2>
+              <p className="text-xs text-slate-400">Update the wallet address used to pull telemetry from CKPool</p>
             </div>
           </div>
           {onClose && (
             <button
               onClick={onClose}
               className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-              title="ปิด"
+              title="Close"
             >
               <X className="w-5 h-5" />
             </button>
