@@ -1,11 +1,14 @@
 # CKPool Sentinel | Bitcoin Solo Mining Realtime Monitor
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-ckpool--sentinel.vercel.app-F7931A?style=for-the-badge&logo=vercel)](https://ckpool-sentinel.vercel.app/)
 [![Next.js 15](https://img.shields.io/badge/Next.js-15.1.7-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![React 19](https://img.shields.io/badge/React-19.0.0-61dafb?style=for-the-badge&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-WAL%20Mode-003B57?style=for-the-badge&logo=sqlite)](https://sqlite.org/)
 [![Vitest](https://img.shields.io/badge/Tests-30%20Passed-22c55e?style=for-the-badge&logo=vitest)](https://vitest.dev/)
+
+> 🌐 **Live Demo Available**: Try the live interactive dashboard at [https://ckpool-sentinel.vercel.app/](https://ckpool-sentinel.vercel.app/)
 
 **CKPool Sentinel** is a production-grade, high-performance web dashboard engineered for Bitcoin solo miners pointing their rigs (Bitaxe, NerdMiner, Avalon, Antminer, etc.) to [CKPool](https://raw.stats.ckpool.org). It transforms raw upstream JSON statistics into an interactive, real-time command center featuring automated ingestion, persistent database historical tracking, and a sleek dark-mode crypto terminal aesthetic.
 

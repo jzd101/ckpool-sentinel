@@ -13,7 +13,7 @@ jobs:
       - name: Trigger background sync on Vercel deployment
         run: |
           echo "Triggering background synchronization..."
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST https://solo-minier.vercel.app/api/sync)
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST https://ckpool-sentinel.vercel.app/api/sync)
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
           echo "HTTP Code: $HTTP_CODE"
