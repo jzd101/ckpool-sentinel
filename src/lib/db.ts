@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { NewSnapshotInput, SnapshotRecord, TimeframeOption } from "./types";
+import { DEFAULT_BTC_ADDRESS } from "./constants";
 
 const inMemorySnapshots: SnapshotRecord[] = [];
 let memoryIdCounter = 1;
@@ -137,6 +138,7 @@ export function initDatabase(dbPath?: string, existingDb?: Database.Database): v
       CREATE TABLE IF NOT EXISTS snapshots (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp INTEGER NOT NULL,
+        address TEXT DEFAULT '${DEFAULT_BTC_ADDRESS}',
         hashrate_1m REAL NOT NULL,
         hashrate_5m REAL NOT NULL,
         hashrate_1hr REAL NOT NULL,
@@ -157,6 +159,17 @@ export function initDatabase(dbPath?: string, existingDb?: Database.Database): v
 
       CREATE INDEX IF NOT EXISTS idx_snapshots_timestamp ON snapshots(timestamp DESC);
     `);
+
+    // Migration check: ensure column address exists if table already existed
+    try {
+      const columns = db.prepare("PRAGMA table_info(snapshots)").all() as Array<{ name: string }>;
+      if (!columns.some((c) => c.name === "address")) {
+        db.exec(`ALTER TABLE snapshots ADD COLUMN address TEXT DEFAULT '${DEFAULT_BTC_ADDRESS}'`);
+      }
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_snapshots_address ON snapshots(address)`);
+    } catch {
+      // ignore migration error
+    }
   } catch (err) {
     console.warn("Failed to execute initDatabase schema:", err);
   }
@@ -165,12 +178,17 @@ export function initDatabase(dbPath?: string, existingDb?: Database.Database): v
 export function insertSnapshot(snapshot: NewSnapshotInput, dbPath?: string): SnapshotRecord {
   const resolvedPath = dbPath || getDefaultDbPath();
   const db = getDb(resolvedPath);
+  const fullSnapshot = {
+    ...snapshot,
+    address: snapshot.address || DEFAULT_BTC_ADDRESS,
+  };
 
   if (db) {
     try {
       const stmt = db.prepare(`
         INSERT INTO snapshots (
           timestamp,
+          address,
           hashrate_1m,
           hashrate_5m,
           hashrate_1hr,
@@ -189,6 +207,7 @@ export function insertSnapshot(snapshot: NewSnapshotInput, dbPath?: string): Sna
           raw_json
         ) VALUES (
           @timestamp,
+          @address,
           @hashrate_1m,
           @hashrate_5m,
           @hashrate_1hr,
@@ -208,9 +227,9 @@ export function insertSnapshot(snapshot: NewSnapshotInput, dbPath?: string): Sna
         )
       `);
 
-      const info = stmt.run(snapshot);
+      const info = stmt.run(fullSnapshot);
       const record: SnapshotRecord = {
-        ...snapshot,
+        ...fullSnapshot,
         id: Number(info.lastInsertRowid),
       };
       inMemorySnapshots.push(record);
@@ -223,7 +242,7 @@ export function insertSnapshot(snapshot: NewSnapshotInput, dbPath?: string): Sna
 
   // Fallback to in-memory store
   const record: SnapshotRecord = {
-    ...snapshot,
+    ...fullSnapshot,
     id: memoryIdCounter++,
   };
   inMemorySnapshots.push(record);
@@ -231,14 +250,28 @@ export function insertSnapshot(snapshot: NewSnapshotInput, dbPath?: string): Sna
   return record;
 }
 
-export function getLatestSnapshot(dbPath?: string): SnapshotRecord | null {
+export function getLatestSnapshot(dbPath?: string, targetAddress?: string): SnapshotRecord | null {
   const resolvedPath = dbPath || getDefaultDbPath();
   const db = getDb(resolvedPath);
 
   if (db) {
     try {
-      const stmt = db.prepare("SELECT * FROM snapshots ORDER BY timestamp DESC, id DESC LIMIT 1");
-      const row = stmt.get() as SnapshotRecord | undefined;
+      let row: SnapshotRecord | undefined;
+      if (targetAddress) {
+        const stmt = db.prepare(
+          "SELECT * FROM snapshots WHERE address = ? ORDER BY timestamp DESC, id DESC LIMIT 1"
+        );
+        row = stmt.get(targetAddress) as SnapshotRecord | undefined;
+        if (!row && targetAddress === DEFAULT_BTC_ADDRESS) {
+          const fallbackStmt = db.prepare(
+            "SELECT * FROM snapshots WHERE address IS NULL ORDER BY timestamp DESC, id DESC LIMIT 1"
+          );
+          row = fallbackStmt.get() as SnapshotRecord | undefined;
+        }
+      } else {
+        const stmt = db.prepare("SELECT * FROM snapshots ORDER BY timestamp DESC, id DESC LIMIT 1");
+        row = stmt.get() as SnapshotRecord | undefined;
+      }
       if (row) return row;
     } catch (err) {
       console.warn("SQLite getLatestSnapshot failed, falling back to memory:", err);
@@ -250,14 +283,24 @@ export function getLatestSnapshot(dbPath?: string): SnapshotRecord | null {
   }
 
   if (inMemorySnapshots.length > 0) {
-    return inMemorySnapshots[inMemorySnapshots.length - 1];
+    if (targetAddress) {
+      for (let i = inMemorySnapshots.length - 1; i >= 0; i--) {
+        const s = inMemorySnapshots[i];
+        if (s.address === targetAddress || (!s.address && targetAddress === DEFAULT_BTC_ADDRESS)) {
+          return s;
+        }
+      }
+    } else {
+      return inMemorySnapshots[inMemorySnapshots.length - 1];
+    }
   }
   return null;
 }
 
 export function getSnapshotsByTimeframe(
   timeframe: TimeframeOption,
-  dbPath?: string
+  dbPath?: string,
+  targetAddress?: string
 ): SnapshotRecord[] {
   const resolvedPath = dbPath || getDefaultDbPath();
   const db = getDb(resolvedPath);
@@ -286,12 +329,21 @@ export function getSnapshotsByTimeframe(
 
   if (db) {
     try {
-      const stmt = db.prepare(`
-        SELECT * FROM snapshots 
-        WHERE timestamp >= ? 
-        ORDER BY timestamp ASC
-      `);
-      return stmt.all(cutoff) as SnapshotRecord[];
+      if (targetAddress) {
+        const stmt = db.prepare(`
+          SELECT * FROM snapshots 
+          WHERE timestamp >= ? AND (address = ? OR (address IS NULL AND ? = '${DEFAULT_BTC_ADDRESS}'))
+          ORDER BY timestamp ASC
+        `);
+        return stmt.all(cutoff, targetAddress, targetAddress) as SnapshotRecord[];
+      } else {
+        const stmt = db.prepare(`
+          SELECT * FROM snapshots 
+          WHERE timestamp >= ? 
+          ORDER BY timestamp ASC
+        `);
+        return stmt.all(cutoff) as SnapshotRecord[];
+      }
     } catch (err) {
       console.warn("SQLite getSnapshotsByTimeframe failed, falling back to memory:", err);
     }
@@ -302,6 +354,12 @@ export function getSnapshotsByTimeframe(
   }
 
   return inMemorySnapshots
-    .filter((s) => s.timestamp >= cutoff)
+    .filter((s) => {
+      if (s.timestamp < cutoff) return false;
+      if (targetAddress) {
+        return s.address === targetAddress || (!s.address && targetAddress === DEFAULT_BTC_ADDRESS);
+      }
+      return true;
+    })
     .sort((a, b) => a.timestamp - b.timestamp);
 }

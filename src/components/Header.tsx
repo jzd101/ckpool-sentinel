@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Cpu, Copy, Check, RotateCw, Activity, Clock } from "lucide-react";
+import { Cpu, Copy, Check, RotateCw, Activity, Clock, Pencil } from "lucide-react";
 
 interface HeaderProps {
   btcAddress: string;
@@ -9,6 +9,7 @@ interface HeaderProps {
   isRefreshing: boolean;
   lastUpdated: number | null;
   onForceRefresh: () => Promise<void>;
+  onEditWallet?: () => void;
 }
 
 export default function Header({
@@ -17,6 +18,7 @@ export default function Header({
   isRefreshing,
   lastUpdated,
   onForceRefresh,
+  onEditWallet,
 }: HeaderProps) {
   const [copied, setCopied] = useState(false);
 
@@ -89,13 +91,24 @@ export default function Header({
         <span className="truncate max-w-[200px] sm:max-w-[320px] md:max-w-[400px] text-slate-200" title={btcAddress}>
           {btcAddress}
         </span>
-        <button
-          onClick={handleCopy}
-          className="ml-auto p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-colors"
-          title="Copy Bitcoin Address"
-        >
-          {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-        </button>
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            onClick={handleCopy}
+            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-colors"
+            title="Copy Bitcoin Address"
+          >
+            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+          </button>
+          {onEditWallet && (
+            <button
+              onClick={onEditWallet}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition-colors"
+              title="แก้ไข / เปลี่ยน Bitcoin Wallet Address"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Sync Status & Force Refresh Section */}

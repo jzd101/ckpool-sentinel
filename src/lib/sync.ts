@@ -1,8 +1,12 @@
 import { insertSnapshot, getLatestSnapshot } from "./db";
 import { parseHashrateToTh } from "./hashrate";
 import { NewSnapshotInput, RawCKPoolUserStats, SnapshotRecord } from "./types";
+import { DEFAULT_BTC_ADDRESS } from "./constants";
 
-export const CKPOOL_USER_URL = "https://raw.stats.ckpool.org/users/bc1qw7mwuw3nuvf4r9enm39ujzn26gs04gj6t9tx4h";
+export const getCKPoolUserUrl = (address: string = DEFAULT_BTC_ADDRESS) =>
+  `https://raw.stats.ckpool.org/users/${address.trim()}`;
+
+export const CKPOOL_USER_URL = getCKPoolUserUrl(DEFAULT_BTC_ADDRESS);
 export const SYNC_INTERVAL_SECONDS = 60; // 1 minute
 
 export interface SyncResult {
@@ -12,8 +16,13 @@ export interface SyncResult {
   cached?: boolean;
 }
 
-export async function syncCKPoolStats(force: boolean = false, dbPath?: string): Promise<SyncResult> {
-  const latest = getLatestSnapshot(dbPath);
+export async function syncCKPoolStats(
+  force: boolean = false,
+  dbPath?: string,
+  targetAddress: string = DEFAULT_BTC_ADDRESS
+): Promise<SyncResult> {
+  const address = (targetAddress && targetAddress.trim()) || DEFAULT_BTC_ADDRESS;
+  const latest = getLatestSnapshot(dbPath, address);
   const now = Math.floor(Date.now() / 1000);
 
   // If not forced and synced recently (< 1 minute), return latest cached
@@ -29,7 +38,8 @@ export async function syncCKPoolStats(force: boolean = false, dbPath?: string): 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const res = await fetch(CKPOOL_USER_URL, {
+    const userUrl = getCKPoolUserUrl(address);
+    const res = await fetch(userUrl, {
       headers: {
         "User-Agent": "CKPool-Sentinel-Dashboard/1.0",
         Accept: "application/json",
@@ -47,6 +57,7 @@ export async function syncCKPoolStats(force: boolean = false, dbPath?: string): 
 
     const newSnapshot: NewSnapshotInput = {
       timestamp: now,
+      address,
       hashrate_1m: parseHashrateToTh(json.hashrate1m),
       hashrate_5m: parseHashrateToTh(json.hashrate5m),
       hashrate_1hr: parseHashrateToTh(json.hashrate1hr),
@@ -79,7 +90,7 @@ export async function syncCKPoolStats(force: boolean = false, dbPath?: string): 
       cached: false,
     };
   } catch (error: any) {
-    console.error("Failed to sync from CKPool:", error?.message || error);
+    console.error(`Failed to sync from CKPool (${address}):`, error?.message || error);
     return {
       success: false,
       data: latest,

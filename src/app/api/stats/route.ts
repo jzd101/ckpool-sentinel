@@ -3,6 +3,7 @@ import { getLatestSnapshot, getSnapshotsByTimeframe } from "@/lib/db";
 import { syncCKPoolStats, SYNC_INTERVAL_SECONDS } from "@/lib/sync";
 import { generateTimelineHistory } from "@/lib/timeline";
 import { DashboardApiResponse, RawCKPoolUserStats, TimeframeOption } from "@/lib/types";
+import { DEFAULT_BTC_ADDRESS } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -10,13 +11,14 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const timeframe = (searchParams.get("timeframe") as TimeframeOption) || "24h";
+    const address = (searchParams.get("address") && searchParams.get("address")!.trim()) || DEFAULT_BTC_ADDRESS;
 
-    let latest = getLatestSnapshot();
+    let latest = getLatestSnapshot(undefined, address);
     const now = Math.floor(Date.now() / 1000);
 
-    // If cold start (no records exist), perform initial sync to populate first record
+    // If cold start (no records exist for this address), perform initial sync to populate first record
     if (!latest) {
-      const syncResult = await syncCKPoolStats(true);
+      const syncResult = await syncCKPoolStats(true, undefined, address);
       if (syncResult.data) {
         latest = syncResult.data;
       }
@@ -25,14 +27,14 @@ export async function GET(request: NextRequest) {
       // Dispatch background sync job via Next.js 15 after()
       after(async () => {
         try {
-          await syncCKPoolStats(true);
+          await syncCKPoolStats(true, undefined, address);
         } catch (bgErr) {
           console.warn("Background CKPool sync job error:", bgErr);
         }
       });
     }
 
-    const historyRecords = getSnapshotsByTimeframe(timeframe);
+    const historyRecords = getSnapshotsByTimeframe(timeframe, undefined, address);
     const chartHistory = generateTimelineHistory(timeframe, historyRecords, latest);
 
     // Parse worker details from raw_json
@@ -57,6 +59,7 @@ export async function GET(request: NextRequest) {
       timeframe,
       lastUpdated,
       nextSyncInSeconds,
+      address,
     };
 
     return NextResponse.json(responseData);
@@ -65,7 +68,9 @@ export async function GET(request: NextRequest) {
 
     // Disaster recovery: try direct fetch from CKPool if DB operations threw
     try {
-      const syncResult = await syncCKPoolStats(true);
+      const searchParams = request.nextUrl.searchParams;
+      const address = (searchParams.get("address") && searchParams.get("address")!.trim()) || DEFAULT_BTC_ADDRESS;
+      const syncResult = await syncCKPoolStats(true, undefined, address);
       if (syncResult.data) {
         let parsedWorkers = undefined;
         try {
@@ -83,6 +88,7 @@ export async function GET(request: NextRequest) {
           lastUpdated: syncResult.data.timestamp,
           nextSyncInSeconds: SYNC_INTERVAL_SECONDS,
           isCachedFallback: true,
+          address,
         });
       }
     } catch {

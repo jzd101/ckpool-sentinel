@@ -120,4 +120,31 @@ describe("SQLite Database Layer", () => {
 
     resetMemoryFallback();
   });
+
+  it("should isolate snapshots by address and filter accordingly", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const addr1 = "bc1qcustomaddress111111111111111111111111";
+    const addr2 = "bc1qcustomaddress222222222222222222222222";
+
+    insertSnapshot({ ...sampleInput, timestamp: now - 100, address: addr1, shares: 100 }, TEST_DB_PATH);
+    insertSnapshot({ ...sampleInput, timestamp: now - 50, address: addr2, shares: 200 }, TEST_DB_PATH);
+
+    const latestAddr1 = getLatestSnapshot(TEST_DB_PATH, addr1);
+    expect(latestAddr1).not.toBeNull();
+    expect(latestAddr1?.address).toBe(addr1);
+    expect(latestAddr1?.shares).toBe(100);
+
+    const latestAddr2 = getLatestSnapshot(TEST_DB_PATH, addr2);
+    expect(latestAddr2).not.toBeNull();
+    expect(latestAddr2?.address).toBe(addr2);
+    expect(latestAddr2?.shares).toBe(200);
+
+    const historyAddr1 = getSnapshotsByTimeframe("24h", TEST_DB_PATH, addr1);
+    expect(historyAddr1.length).toBe(1);
+    expect(historyAddr1[0].address).toBe(addr1);
+
+    const historyAddr2 = getSnapshotsByTimeframe("24h", TEST_DB_PATH, addr2);
+    expect(historyAddr2.length).toBe(1);
+    expect(historyAddr2[0].address).toBe(addr2);
+  });
 });

@@ -119,4 +119,21 @@ describe("CKPool Sync Service", () => {
     expect(secondResult.cached).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("should fetch from custom CKPool user URL when custom address is provided", async () => {
+    const customAddress = "bc1qcustomminertest9999999999999999999999";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockPayload,
+    } as Response);
+    global.fetch = fetchMock;
+
+    const result = await syncCKPoolStats(true, TEST_DB_PATH, customAddress);
+    expect(result.success).toBe(true);
+    expect(result.data?.address).toBe(customAddress);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://raw.stats.ckpool.org/users/${customAddress}`,
+      expect.any(Object)
+    );
+  });
 });

@@ -34,6 +34,7 @@ export interface RawCKPoolUserStats {
 export interface SnapshotRecord {
   id: number;
   timestamp: number;
+  address?: string;
   hashrate_1m: number;
   hashrate_5m: number;
   hashrate_1hr: number;
@@ -79,4 +80,5 @@ export interface DashboardApiResponse {
   lastUpdated: number | null;
   nextSyncInSeconds: number;
   isCachedFallback?: boolean;
+  address?: string;
 }

@@ -7,12 +7,21 @@ import HashrateChart from "@/components/HashrateChart";
 import HistoryTable from "@/components/HistoryTable";
 import TimeframeComparison from "@/components/TimeframeComparison";
 import WorkerList from "@/components/WorkerList";
+import WalletGateModal from "@/components/WalletGateModal";
 import { DashboardApiResponse, SnapshotRecord, TimeframeOption } from "@/lib/types";
-import { AlertCircle, RefreshCw, Radio } from "lucide-react";
-
-const DEFAULT_BTC_ADDRESS = "bc1qw7mwuw3nuvf4r9enm39ujzn26gs04gj6t9tx4h";
+import {
+  DEFAULT_BTC_ADDRESS,
+  STORAGE_KEY_BTC_ADDRESS,
+  STORAGE_KEY_CACHE,
+  STORAGE_KEY_SNAPSHOTS,
+} from "@/lib/constants";
+import { AlertCircle, RefreshCw, Radio, Cpu } from "lucide-react";
 
 export default function DashboardPage() {
+  const [btcAddress, setBtcAddress] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+
   const [data, setData] = useState<DashboardApiResponse | null>(null);
   const [timeframe, setTimeframe] = useState<TimeframeOption>("24h");
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -22,15 +31,25 @@ export default function DashboardPage() {
 
   const lastFetchRef = useRef<number>(Date.now());
 
-  // Fetch statistics from API route
+  // Fetch statistics from API route for a specific address
   const fetchStats = useCallback(
-    async (selectedTf: TimeframeOption = timeframe, showLoading: boolean = false) => {
+    async (
+      selectedTf: TimeframeOption = timeframe,
+      showLoading: boolean = false,
+      customAddress?: string
+    ) => {
+      const targetAddr = customAddress || btcAddress;
+      if (!targetAddr) return;
+
       if (showLoading) setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/stats?timeframe=${selectedTf}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `/api/stats?timeframe=${selectedTf}&address=${encodeURIComponent(targetAddr)}`,
+          {
+            cache: "no-store",
+          }
+        );
 
         if (!res.ok) {
           throw new Error(`Failed to load data (HTTP ${res.status})`);
@@ -38,9 +57,10 @@ export default function DashboardPage() {
 
         const json: DashboardApiResponse = await res.json();
 
-        // Merge snapshots into client-side persistent history
+        // Merge snapshots into client-side persistent history scoped by address
         try {
-          const storedRaw = localStorage.getItem("ckpool_persisted_snapshots");
+          const snapKey = `${STORAGE_KEY_SNAPSHOTS}_${targetAddr}`;
+          const storedRaw = localStorage.getItem(snapKey);
           const storedList: SnapshotRecord[] = storedRaw ? JSON.parse(storedRaw) : [];
           const snapMap = new Map<number, SnapshotRecord>(storedList.map((s) => [s.timestamp, s]));
 
@@ -53,7 +73,7 @@ export default function DashboardPage() {
 
           const merged = Array.from(snapMap.values()).sort((a, b) => a.timestamp - b.timestamp);
           const capped = merged.slice(-5000);
-          localStorage.setItem("ckpool_persisted_snapshots", JSON.stringify(capped));
+          localStorage.setItem(snapKey, JSON.stringify(capped));
 
           // Filter snapshots by selected timeframe
           const nowTs = Math.floor(Date.now() / 1000);
@@ -71,7 +91,8 @@ export default function DashboardPage() {
           if (tfSnapshots.length > 0) {
             json.snapshots = tfSnapshots;
           }
-          localStorage.setItem("ckpool_dashboard_cache", JSON.stringify(json));
+          const cacheKey = `${STORAGE_KEY_CACHE}_${targetAddr}`;
+          localStorage.setItem(cacheKey, JSON.stringify(json));
         } catch {
           // ignore localStorage errors
         }
@@ -87,15 +108,16 @@ export default function DashboardPage() {
         setIsRefreshing(false);
       }
     },
-    [timeframe]
+    [btcAddress, timeframe]
   );
 
   // Trigger manual force refresh
   const handleForceRefresh = async () => {
+    if (!btcAddress) return;
     setIsRefreshing(true);
     setError(null);
     try {
-      const res = await fetch("/api/sync", {
+      const res = await fetch(`/api/sync?address=${encodeURIComponent(btcAddress)}`, {
         method: "POST",
         cache: "no-store",
       });
@@ -103,7 +125,7 @@ export default function DashboardPage() {
         throw new Error("Force refresh request failed");
       }
       // Re-fetch current timeframe stats
-      await fetchStats(timeframe, false);
+      await fetchStats(timeframe, false, btcAddress);
     } catch (err: any) {
       console.error("Force refresh error:", err);
       setError(err?.message || "Failed to synchronize with CKPool");
@@ -117,25 +139,69 @@ export default function DashboardPage() {
     fetchStats(newTf, false);
   };
 
-  // Initial load: restore local cache if available, then fetch fresh
-  useEffect(() => {
+  // Save new or updated wallet address
+  const handleSaveWallet = (newAddress: string) => {
+    const cleaned = newAddress.trim();
     try {
-      const cached = localStorage.getItem("ckpool_dashboard_cache");
+      localStorage.setItem(STORAGE_KEY_BTC_ADDRESS, cleaned);
+    } catch {
+      // ignore
+    }
+    setBtcAddress(cleaned);
+    setIsEditModalOpen(false);
+
+    // Try to load cached data for this address if available
+    try {
+      const cacheKey = `${STORAGE_KEY_CACHE}_${cleaned}`;
+      const cached = localStorage.getItem(cacheKey);
       if (cached) {
         const parsed: DashboardApiResponse = JSON.parse(cached);
         if (parsed?.latest) {
           setData(parsed);
-          setIsLoading(false);
+        } else {
+          setData(null);
         }
+      } else {
+        setData(null);
+      }
+    } catch {
+      setData(null);
+    }
+
+    fetchStats(timeframe, true, cleaned);
+  };
+
+  // Initial load: check for saved wallet in localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_BTC_ADDRESS);
+      if (stored && stored.trim()) {
+        const cleaned = stored.trim();
+        setBtcAddress(cleaned);
+
+        // Restore local cache if available for this address
+        const cacheKey = `${STORAGE_KEY_CACHE}_${cleaned}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed: DashboardApiResponse = JSON.parse(cached);
+          if (parsed?.latest) {
+            setData(parsed);
+            setIsLoading(false);
+          }
+        }
+        fetchStats("24h", true, cleaned);
       }
     } catch {
       // ignore
+    } finally {
+      setIsInitialized(true);
     }
-    fetchStats("24h", true);
   }, []);
 
   // Countdown timer ticker & auto-sync logic
   useEffect(() => {
+    if (!btcAddress) return;
+
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -148,10 +214,12 @@ export default function DashboardPage() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [fetchStats, timeframe]);
+  }, [fetchStats, timeframe, btcAddress]);
 
   // Handle visibility change (reconnect when tab becomes visible again)
   useEffect(() => {
+    if (!btcAddress) return;
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         const elapsedSinceLastFetch = (Date.now() - lastFetchRef.current) / 1000;
@@ -163,7 +231,33 @@ export default function DashboardPage() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [fetchStats, timeframe]);
+  }, [fetchStats, timeframe, btcAddress]);
+
+  // 1. Initial loading state (checking localStorage)
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+        <div className="flex flex-col items-center gap-3">
+          <Cpu className="w-8 h-8 text-amber-400 animate-pulse" />
+          <span className="text-xs font-mono tracking-wider text-slate-400">CKPool Sentinel Initializing...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Gateway screen (when user has not configured a wallet yet)
+  if (!btcAddress) {
+    return (
+      <WalletGateModal
+        isOpen={true}
+        mode="gate"
+        onSave={handleSaveWallet}
+      />
+    );
+  }
+
+  // 3. Main Dashboard screen
+  const activeAddress = btcAddress || DEFAULT_BTC_ADDRESS;
 
   return (
     <div className="min-h-screen p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto flex flex-col justify-between">
@@ -184,13 +278,14 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* 1. Header */}
+        {/* 1. Header with Edit Wallet Trigger */}
         <Header
-          btcAddress={DEFAULT_BTC_ADDRESS}
+          btcAddress={activeAddress}
           nextSyncSeconds={countdown}
           isRefreshing={isRefreshing}
           lastUpdated={data?.lastUpdated || null}
           onForceRefresh={handleForceRefresh}
+          onEditWallet={() => setIsEditModalOpen(true)}
         />
 
         {/* 2. Key Metric Stat Cards */}
@@ -220,6 +315,15 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Edit Wallet Modal */}
+      <WalletGateModal
+        isOpen={isEditModalOpen}
+        mode="edit"
+        currentAddress={activeAddress}
+        onSave={handleSaveWallet}
+        onClose={() => setIsEditModalOpen(false)}
+      />
+
       {/* Footer */}
       <footer className="mt-8 pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
         <div className="flex items-center gap-2">
@@ -227,7 +331,7 @@ export default function DashboardPage() {
           <span>
             CKPool Sentinel Dashboard &bull; Auto-syncing every 1 minute from{" "}
             <a
-              href="https://raw.stats.ckpool.org/users/bc1qw7mwuw3nuvf4r9enm39ujzn26gs04gj6t9tx4h"
+              href={`https://raw.stats.ckpool.org/users/${activeAddress}`}
               target="_blank"
               rel="noreferrer"
               className="text-amber-400 hover:underline"
