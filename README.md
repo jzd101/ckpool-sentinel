@@ -50,7 +50,7 @@
 ## 🏗️ Project Architecture
 
 ```
-solo-minier/
+ckpool-sentinel/
 ├── src/
 │   ├── app/
 │   │   ├── api/
@@ -110,8 +110,8 @@ solo-minier/
 
 ```bash
 # Clone the repository
-git clone https://github.com/jzd101/solo-minier.git
-cd solo-minier
+git clone https://github.com/jzd101/ckpool-sentinel.git
+cd ckpool-sentinel
 
 # Install required packages
 npm install
